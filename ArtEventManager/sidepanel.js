@@ -7,12 +7,15 @@
 let allEvents = [];
 let currentFilter = 'active'; // active, done, all
 let calendarInstance = null;
+let isDarkTheme = true;
 
 // バックグラウンドとの接続維持（バッジクリア用）
 const port = chrome.runtime.connect({ name: 'ArtEventManager-sidepanel' });
 
 // ─── 初期化 ───
 document.addEventListener('DOMContentLoaded', async () => {
+  await loadThemePreference();
+  setupThemeToggle();
   setupTabs();
   setupFilters();
   setupRefresh();
@@ -28,6 +31,52 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupEventDelegation('todayList');
   setupEventDelegation('allList');
 });
+
+// ─── テーマ管理 ───
+async function loadThemePreference() {
+  try {
+    const result = await chrome.storage.local.get('theme');
+    if (result.theme === 'light') {
+      isDarkTheme = false;
+      document.body.classList.add('light-theme');
+      updateThemeIcons();
+    }
+  } catch (error) {
+    console.error('[ArtEventManager] テーマ読み込みエラー:', error);
+  }
+}
+
+function setupThemeToggle() {
+  const btn = document.getElementById('themeToggleBtn');
+  if (!btn) return;
+
+  btn.addEventListener('click', async () => {
+    isDarkTheme = !isDarkTheme;
+    if (isDarkTheme) {
+      document.body.classList.remove('light-theme');
+      await chrome.storage.local.set({ theme: 'dark' });
+    } else {
+      document.body.classList.add('light-theme');
+      await chrome.storage.local.set({ theme: 'light' });
+    }
+    updateThemeIcons();
+    initMermaid(); // Mermaidのテーマ設定を再初期化
+  });
+}
+
+function updateThemeIcons() {
+  const lightIcon = document.getElementById('themeIconLight');
+  const darkIcon = document.getElementById('themeIconDark');
+  if (!lightIcon || !darkIcon) return;
+
+  if (isDarkTheme) {
+    lightIcon.classList.add('hidden');
+    darkIcon.classList.remove('hidden');
+  } else {
+    lightIcon.classList.remove('hidden');
+    darkIcon.classList.add('hidden');
+  }
+}
 
 // ─── URL手動収集 ───
 function setupUrlCollection() {
@@ -382,8 +431,7 @@ function updateCalendar() {
 
 // ─── Mermaid初期化 ───
 function initMermaid() {
-  mermaid.initialize({
-    startOnLoad: false,
+  const themeParams = isDarkTheme ? {
     theme: 'dark',
     themeVariables: {
       darkMode: true,
@@ -397,6 +445,24 @@ function initMermaid() {
       gridColor: 'rgba(255, 255, 255, 0.06)',
       todayLineColor: '#ef4444'
     }
+  } : {
+    theme: 'default',
+    themeVariables: {
+      darkMode: false,
+      primaryColor: '#4f46e5',
+      primaryTextColor: '#111827',
+      primaryBorderColor: '#4f46e5',
+      lineColor: '#9ca3af',
+      sectionBkgColor: '#f3f4f6',
+      altSectionBkgColor: '#ffffff',
+      gridColor: 'rgba(0, 0, 0, 0.05)',
+      todayLineColor: '#ef4444'
+    }
+  };
+
+  mermaid.initialize({
+    startOnLoad: false,
+    ...themeParams
   });
 }
 
